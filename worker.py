@@ -1,22 +1,24 @@
-import time
+import os
 from celery import Celery
+from PIL import Image, ImageOps
 
-# Setup Celery to use Redis as the broker and backend
 celery_app = Celery(
     "ml_tasks",
     broker="redis://redis:6379/0",
     backend="redis://redis:6379/0"
 )
 
-@celery_app.task(bind=True)
-def simulate_ml_workload(self, data_name: str):
-    print(f"Starting heavy ML processing for: {data_name}")
+@celery_app.task
+def process_image_ml(file_path: str):
+    # Simulate ML processing (Grayscale filter)
+    if not os.path.exists(file_path):
+        return {"error": "File not found"}
+
+    img = Image.open(file_path)
+    processed_img = ImageOps.grayscale(img)
     
-    # Simulate an ML model loading and processing (10 seconds)
-    for i in range(10):
-        time.sleep(1)
-        # Update progress (optional)
-        self.update_state(state='PROGRESS', meta={'current': i+1, 'total': 10})
+    # Save the "result"
+    output_path = file_path.replace("uploads/", "uploads/processed_")
+    processed_img.save(output_path)
     
-    print(f"Finished processing: {data_name}")
-    return {"status": "Success", "result": f"Model results for {data_name} are ready."}
+    return {"status": "Success", "output_file": output_path}

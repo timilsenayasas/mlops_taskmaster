@@ -1,22 +1,30 @@
-from fastapi import FastAPI
-from worker import simulate_ml_workload
-from celery.result import AsyncResult
+from fastapi import FastAPI, UploadFile, File
+from worker import process_image_ml
+import shutil
+import os
 
-app = FastAPI(title="MLOps Taskmaster")
+app = FastAPI()
 
-@app.post("/upload-data")
-async def upload_data(name: str):
-    # Trigger the Celery task (delay() runs it in background)
-    task = simulate_ml_workload.delay(name)
-    return {"task_id": task.id, "status": "Task Queued"}
+# Ensure uploads directory exists
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+@app.post("/upload-image")
+async def upload_image(file: UploadFile = File(...)):
+    file_path = os.path.join(UPLOAD_DIR, file.filename)
+    
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    # Send to worker
+    task = process_image_ml.delay(file_path)
+    return {"task_id": task.id, "filename": file.filename}
 
 @app.get("/status/{task_id}")
 async def get_status(task_id: str):
-    # Check the status of the background task
+    from celery.result import AsyncResult
     task_result = AsyncResult(task_id)
-    result = {
-        "task_id": task_id,
-        "task_status": task_result.status,
-        "task_result": task_result.result if task_result.ready() else None
+    return {
+        "status": task_result.status,
+        "result": task_result.result
     }
-    return result

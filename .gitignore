@@ -1,2 +1,5 @@
-*__pycache__/
-*.pyc
+uploads/*
+!uploads/.gitkeep
+__pycache__/
+.venv/
+.env
