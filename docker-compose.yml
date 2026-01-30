@@ -1,0 +1,35 @@
+services:
+  # 1. The Message Broker
+  redis:
+    image: redis:7-alpine
+    container_name: mlops_redis
+    ports:
+      - "6379:6379"
+
+  # 2. The FastAPI Web Server
+  app:
+    build: .
+    container_name: mlops_api
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  # 3. The Celery Worker (The "ML Processor")
+  worker:
+    build: .
+    container_name: mlops_worker
+    command: celery -A worker.celery_app worker --loglevel=info
+    volumes:
+      - .:/app
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+      - app
